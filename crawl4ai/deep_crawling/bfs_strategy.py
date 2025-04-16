@@ -10,7 +10,7 @@ from .filters import FilterChain
 from .scorers import URLScorer
 from . import DeepCrawlStrategy
 from ..types import AsyncWebCrawler, CrawlerRunConfig, CrawlResult
-from ..utils import normalize_url_for_deep_crawl
+from ..utils import normalize_url_for_deep_crawl, base_domain_url
 from math import inf as infinity
 
 class BFSDeepCrawlStrategy(DeepCrawlStrategy):
@@ -96,19 +96,31 @@ class BFSDeepCrawlStrategy(DeepCrawlStrategy):
         if self.include_external:
             links += result.links.get("external", [])
 
-        valid_links = []
-        
+        valid_links: List[Tuple[str, float]] = []
+
         # First collect all valid links
+        seen: Set[str] = set()
         for link in links:
             url: Optional[str] = link.get("href")
             if not url:
                 continue
 
             # Strip URL fragments to avoid duplicate crawling
-            # base_url = url.split('#')[0] if url else url
             base_url = normalize_url_for_deep_crawl(url, source_url)
-            if base_url in visited:
+            if base_url in visited or base_url in seen:
                 continue
+
+            # Normalize the URL to its base domain
+            domain_url: str = base_domain_url(base_url)
+            if domain_url in visited or domain_url in seen:
+                continue
+
+            # Register as seen so we don't process it again, this avoids duplicates
+            # for URLs which have the same base domain, which would otherwise be
+            # added to next_depth multiple times. This also eliminates duplicate
+            # work in this loop processing the same URL multiple times.
+            seen.add(domain_url)
+
             if not await self.can_process_url(url, next_depth):
                 self.stats.urls_skipped += 1
                 continue
@@ -161,7 +173,7 @@ class BFSDeepCrawlStrategy(DeepCrawlStrategy):
 
         while current_level and not self._cancel_event.is_set():
             next_level: List[Tuple[str, Optional[str]]] = []
-            urls = [url for url, _ in current_level]
+            urls = [base_domain_url(url) for url, _ in current_level]
             visited.update(urls)
 
             # Clone the config to disable deep crawling recursion and enforce batch mode.
@@ -203,7 +215,7 @@ class BFSDeepCrawlStrategy(DeepCrawlStrategy):
 
         while current_level and not self._cancel_event.is_set():
             next_level: List[Tuple[str, Optional[str]]] = []
-            urls = [url for url, _ in current_level]
+            urls = [base_domain_url(url) for url, _ in current_level]
             visited.update(urls)
 
             stream_config = config.clone(deep_crawl_strategy=None, stream=True)

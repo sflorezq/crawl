@@ -1974,8 +1974,6 @@ def fast_format_html(html_string):
 
 def normalize_url(href, base_url):
     """Normalize URLs to ensure consistent format"""
-    from urllib.parse import urljoin, urlparse
-
     # Parse base URL to get components
     parsed_base = urlparse(base_url)
     if not parsed_base.scheme or not parsed_base.netloc:
@@ -1988,7 +1986,7 @@ def normalize_url(href, base_url):
 
 def normalize_url_for_deep_crawl(href: str, base_url: str) -> str:
     """Normalize URLs to ensure consistent format"""
-    from urllib.parse import urljoin, urlparse, urlunparse, parse_qs, urlencode
+    from urllib.parse import parse_qs, urlencode
 
     # Use urljoin to handle relative URLs
     full_url = urljoin(base_url, href.strip())
@@ -2028,6 +2026,37 @@ def normalize_url_for_deep_crawl(href: str, base_url: str) -> str:
     ))
     
     return normalized
+
+def base_domain_url(url: str) -> str:
+    """Return the URL using the base domain.
+
+    This can be used to ensure that we don't revisit the same URL
+    multiple times even if the domain changes e.g. www.example.com vs example.com
+    or if the URL has a port number which is not needed e.g. example.com:80.
+
+    See `get_base_domain` for details on how the base domain is extracted.
+    Args:
+        url (str): The URL to extract the base domain from.
+    Returns:
+        str: The url using the base domain or url unchanged if parsing fails.
+    """
+
+    try:
+        parsed: ParseResult = urlparse(url)
+        base_domain: str = get_base_domain_parsed(parsed)
+        if not base_domain:
+            return url
+
+        return urlunparse((
+            parsed.scheme,
+            base_domain,
+            parsed.path,
+            parsed.params,
+            parsed.query,
+            ""
+        ))
+    except Exception:
+        return url
 
 @lru_cache(maxsize=10000)
 def efficient_normalize_url_for_deep_crawl(href, base_url):
@@ -2112,45 +2141,62 @@ def get_base_domain(url: str) -> str:
     """
     try:
         parsed: ParseResult = urlparse(url)
-        domain = parsed.netloc.lower()
-        if not domain:
-            return ""
-
-        # Remove port if present
-        domain = domain.split(":")[0]
-
-        # Remove www
-        domain = domain.removeprefix("www.")
-
-        port_suffix: str = ""
-        port = parsed.port
-        if port is not None and port != DEFAULT_PORTS.get(parsed.scheme):
-            # Port needed.
-            port_suffix = f":{port}"
-
-
-        # Extract last two parts of domain (handles co.uk etc)
-        parts = domain.split(".")
-        if len(parts) > 2 and parts[-2] in {
-            "co",
-            "com",
-            "org",
-            "gov",
-            "edu",
-            "net",
-            "mil",
-            "int",
-            "ac",
-            "ad",
-            "ae",
-            "af",
-            "ag",
-        }:
-            return ".".join(parts[-3:]) + port_suffix
-
-        return ".".join(parts[-2:]) + port_suffix
+        return get_base_domain_parsed(parsed)
     except Exception:
         return ""
+
+
+def get_base_domain_parsed(parsed: ParseResult) -> str:
+    """
+    Extract the base domain from the parsed URL, handling common edge cases.
+
+    How it works:
+    1. Parses the URL to extract the domain.
+    2. Removes the port number and 'www' prefix if necessary.
+    3. Handles special domains (e.g., 'co.uk') to extract the correct base.
+
+    Args:
+        parsed (str): The parsed URL to extract the base domain from.
+
+    Returns:
+        str: The extracted base domain or an empty string if netloc is empty.
+    """
+    domain: str = parsed.netloc.lower()
+    if not domain:
+        return ""
+
+    # Remove port if present
+    domain = domain.split(":")[0]
+
+    # Remove www
+    domain = domain.removeprefix("www.")
+
+    port_suffix: str = ""
+    port = parsed.port
+    if port is not None and port != DEFAULT_PORTS.get(parsed.scheme):
+        # Port needed.
+        port_suffix = f":{port}"
+
+    # Extract last two parts of domain (handles co.uk etc)
+    parts = domain.split(".")
+    if len(parts) > 2 and parts[-2] in {
+        "co",
+        "com",
+        "org",
+        "gov",
+        "edu",
+        "net",
+        "mil",
+        "int",
+        "ac",
+        "ad",
+        "ae",
+        "af",
+        "ag",
+    }:
+        return ".".join(parts[-3:]) + port_suffix
+
+    return ".".join(parts[-2:]) + port_suffix
 
 
 def is_external_url(url: str, base_domain: str) -> bool:
@@ -2753,8 +2799,8 @@ def preprocess_html_for_schema(html_content, text_threshold=100, attr_value_thre
             return result[:max_size] + "..."
             
         return result
-    
-    except Exception as e:
+
+    except Exception:
         # Fallback for parsing errors
         return html_content[:max_size] if len(html_content) > max_size else html_content
     
