@@ -31,7 +31,7 @@ import hashlib
 
 from urllib.robotparser import RobotFileParser
 import aiohttp
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
 from functools import lru_cache
 
 from packaging import version
@@ -1993,21 +1993,82 @@ def fast_format_html(html_string):
 
 
 def normalize_url(href, base_url):
-    """Normalize URLs to ensure consistent format"""
-    from urllib.parse import urljoin, urlparse
+    """Normalize URLs to ensure consistent format with a better way
+    also remove tracking parameters"""
 
-    # Parse base URL to get components
-    parsed_base = urlparse(base_url)
-    if not parsed_base.scheme or not parsed_base.netloc:
-        raise ValueError(f"Invalid base URL format: {base_url}")
+    params_to_remove = [
+    'utm_source', 'utm_medium', 'utm_campaign', 
+    'utm_term', 'utm_content', 'fbclid', 'gclid',
+    'utm_id', 'utm_source_platform', 'utm_creative_format',
+    'utm_marketing_tactic', 'ref', 'referrer', 'source',
+    'fb_action_ids', 'fb_action_types', 'fb_ref',
+    'fb_source', 'action_object_map', 'action_type_map',
+    'action_ref_map', '_ga', '_gl', '_gcl_au',
+    'mc_cid', 'mc_eid', '_bta_tid', '_bta_c',
+    'trk_contact', 'trk_msg', 'trk_module', 'trk_sid',
+    'gdfms', 'gdftrk', 'gdffi', '_ke',
+    'redirect_log_mongo_id', 'redirect_mongo_id',
+    'sb_referrer_host', 'mkt_tok', 'mkt_unsubscribe',
+    'amp', 'amp_js_v', 'amp_r', '__twitter_impression',
+    's_kwcid', 'msclkid', 'dm_i', 'epik',
+    'pk_campaign', 'pk_kwd', 'pk_keyword',
+    'piwik_campaign', 'piwik_kwd', 'piwik_keyword',
+    'mtm_campaign', 'mtm_keyword', 'mtm_source',
+    'mtm_medium', 'mtm_content', 'mtm_cid',
+    'mtm_group', 'mtm_placement', 'yclid',
+    '_openstat', 'wt_zmc', 'wt.zmc', 'from',
+    'xtor', 'xtref', 'xpid', 'xpsid',
+    'xpcid', 'xptid', 'xpt', 'xps',
+    'xpc', 'xpd', 'xpe', 'xpf',
+    'xpg', 'xph', 'xpi', 'xpj',
+    'xpk', 'xpl', 'xpm', 'xpn',
+    'xpo', 'xpp', 'xpq', 'xpr',
+    'xps', 'xpt', 'xpu', 'xpv',
+    'xpw', 'xpx', 'xpy', 'xpz'
+    ]
 
-    # Ensure base_url ends with a trailing slash if it's a directory path
-    if not base_url.endswith('/'):
-        base_url = base_url + '/'
+    url = href.strip()
+    if url.startswith(('www.', 'WWW.')):
+        _url = f"https://{url}"
+    elif url.startswith('/www.'):
+        _url = f"https:/{url}"
+    elif url.startswith("//"):
+        _url = f"https:{url}"
+    elif url.startswith(('http://', 'https://')):
+        _url = url
+    elif url.startswith('http:/'):
+        _url = f"http://{url[6:]}"
+    elif url.startswith('https:/'):
+        _url = f"https://{url[7:]}"
+    else:
+        _url = urljoin(base_url, url)
 
-    # Use urljoin to handle all cases
-    normalized = urljoin(base_url, href.strip())
-    return normalized
+    try:
+        parsed = urlparse(url)
+        query_params = parse_qs(parsed.query)
+    
+        for param in params_to_remove:
+            query_params.pop(param, None)
+    
+        new_query = urlencode(query_params, doseq=True)
+    
+        cleaned_url = urlunparse((
+            parsed.scheme,
+            parsed.netloc,
+            parsed.path,
+            parsed.params,
+            new_query,
+            parsed.fragment
+        ))
+    
+        return cleaned_url
+    except Exception as e:
+        print(f"Error cleaning URL: {e}")
+        _ss = _url.split('//')
+        if len(_ss) == 2:
+            return '//'.join(_ss)
+        else:
+            return _ss[0] + '//' + '/'.join(_ss[1:])
 
 
 def normalize_url_for_deep_crawl(href, base_url):
