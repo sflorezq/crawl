@@ -2062,7 +2062,6 @@ def normalize_url(href, base_url):
         _url = f"https://{url[7:]}"
     else:
         _url = urljoin(base_url, url)
-    …
     try:
         parsed = urlparse(_url)
         query_params = parse_qs(parsed.query)
