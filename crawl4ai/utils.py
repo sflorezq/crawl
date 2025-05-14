@@ -2044,14 +2044,14 @@ def normalize_url(href, base_url):
         _url = urljoin(base_url, url)
 
     try:
-        parsed = urlparse(url)
+        parsed = urlparse(_url)
         query_params = parse_qs(parsed.query)
-    
+
         for param in params_to_remove:
             query_params.pop(param, None)
-    
+
         new_query = urlencode(query_params, doseq=True)
-    
+
         cleaned_url = urlunparse((
             parsed.scheme,
             parsed.netloc,
@@ -2060,7 +2060,7 @@ def normalize_url(href, base_url):
             new_query,
             parsed.fragment
         ))
-    
+
         return cleaned_url
     except Exception as e:
         print(f"Error cleaning URL: {e}")
