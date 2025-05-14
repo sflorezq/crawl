@@ -2039,7 +2039,15 @@ def normalize_url(href, base_url):
         str: The normalized and cleaned URL
     """
 
-    url = href.strip()
+def normalize_url(href, base_url):
+    # Guard against None or empty inputs
+    if href is None:
+        return None
+    href = href.strip()
+    if not href:
+        return None
+
+    url = href
     if url.startswith(('www.', 'WWW.')):
         _url = f"https://{url}"
     elif url.startswith('/www.'):
@@ -2054,7 +2062,7 @@ def normalize_url(href, base_url):
         _url = f"https://{url[7:]}"
     else:
         _url = urljoin(base_url, url)
-
+    …
     try:
         parsed = urlparse(_url)
         query_params = parse_qs(parsed.query)
