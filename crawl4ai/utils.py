@@ -1991,12 +1991,7 @@ def fast_format_html(html_string):
 
     return "\n".join(formatted)
 
-
-def normalize_url(href, base_url):
-    """Normalize URLs to ensure consistent format with a better way
-    also remove tracking parameters"""
-
-    params_to_remove = [
+params_to_remove = [
     'utm_source', 'utm_medium', 'utm_campaign', 
     'utm_term', 'utm_content', 'fbclid', 'gclid',
     'utm_id', 'utm_source_platform', 'utm_creative_format',
@@ -2025,7 +2020,24 @@ def normalize_url(href, base_url):
     'xpo', 'xpp', 'xpq', 'xpr',
     'xps', 'xpt', 'xpu', 'xpv',
     'xpw', 'xpx', 'xpy', 'xpz'
-    ]
+]
+
+@lru_cache(maxsize=1000)
+def normalize_url(href, base_url):
+    """Normalize URLs to ensure consistent format and remove tracking parameters.
+    
+    This function:
+    1. Normalizes URLs with various formats (www., //, http:/, etc.)
+    2. Removes common tracking parameters (UTM, Facebook, Google, etc.)
+    3. Handles URL parsing errors with a fallback mechanism
+    
+    Args:
+        href (str): The URL to normalize
+        base_url (str): The base URL to use for relative URLs
+        
+    Returns:
+        str: The normalized and cleaned URL
+    """
 
     url = href.strip()
     if url.startswith(('www.', 'WWW.')):
@@ -2062,14 +2074,18 @@ def normalize_url(href, base_url):
         ))
 
         return cleaned_url
-    except Exception as e:
-        print(f"Error cleaning URL: {e}")
-        _ss = _url.split('//')
-        if len(_ss) == 2:
-            return '//'.join(_ss)
-        else:
-            return _ss[0] + '//' + '/'.join(_ss[1:])
-
+    except (ValueError, AttributeError, TypeError) as e:
+        print(f"Error cleaning URL '{_url}': {e}")
+        try:
+            # More robust fallback that preserves the original URL structure
+            _ss = _url.split('//')
+            if len(_ss) == 2:
+                return '//'.join(_ss)
+            else:
+                return _ss[0] + '//' + '/'.join(_ss[1:])
+        except:
+            # Ultimate fallback - return the uncleaned url
+            return _url
 
 def normalize_url_for_deep_crawl(href, base_url):
     """Normalize URLs to ensure consistent format"""
