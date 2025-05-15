@@ -2038,30 +2038,32 @@ def normalize_url(href, base_url):
     Returns:
         str: The normalized and cleaned URL
     """
-
-def normalize_url(href, base_url):
     # Guard against None or empty inputs
     if href is None:
         return None
     href = href.strip()
     if not href:
         return None
+    
+    # Handle special URL schemes that shouldn't be modified
+    special_schemes = ['mailto:', 'tel:', 'javascript:', 'data:']
+    if any(href.lower().startswith(scheme) for scheme in special_schemes):
+        return href
 
-    url = href
-    if url.startswith(('www.', 'WWW.')):
-        _url = f"https://{url}"
-    elif url.startswith('/www.'):
-        _url = f"https:/{url}"
-    elif url.startswith("//"):
-        _url = f"https:{url}"
-    elif url.startswith(('http://', 'https://')):
-        _url = url
-    elif url.startswith('http:/'):
-        _url = f"http://{url[6:]}"
-    elif url.startswith('https:/'):
-        _url = f"https://{url[7:]}"
+    if href.startswith(('www.', 'WWW.')):
+        _url = f"https://{href}"
+    elif href.startswith('/www.'):
+        _url = f"https:/{href}"
+    elif href.startswith("//"):
+        _url = f"https:{href}"
+    elif href.startswith(('http://', 'https://')):
+        _url = href
+    elif href.startswith('http:/'):
+        _url = f"http://{href[6:]}"
+    elif href.startswith('https:/'):
+        _url = f"https://{href[7:]}"
     else:
-        _url = urljoin(base_url, url)
+        _url = urljoin(base_url, href)
     try:
         parsed = urlparse(_url)
         query_params = parse_qs(parsed.query)
