@@ -2092,7 +2092,8 @@ def normalize_url(href, base_url):
                 return '//'.join(_ss)
             else:
                 return _ss[0] + '//' + '/'.join(_ss[1:])
-        except:
+        except Exception as fallback_error:
+            print(f"Fallback error for URL '{_url}': {fallback_error}")
             # Ultimate fallback - return the uncleaned url
             return _url
 
